@@ -13,6 +13,8 @@ const char* vertexShaderSource = R"(
 #define MAX_SUBMESH_PER_DRAW 1024
 #pragma pack_matrix(row_major)
 [[vk::push_constant]] 
+
+
 cbuffer SHADER_VARS
 {
     uint MaterialID;
@@ -67,6 +69,7 @@ struct VS_OUTPUT
 {
  float4 Position:SV_Position;
 float4 normal : NORMAL;
+float3 Posw : WORLD;
 };
 
 
@@ -85,8 +88,8 @@ matrix spoopy = {     1,0,0,0,
                       0,1,0,0,
                       0,0,1,0,
                       0 ,0,0,1};
-   // result.Position = mul(spoopy, result.Position);
-
+    //result.Position = mul( result.Position,result.Posw);
+    
     result.Position = mul(result.Position,scenedata[0].matrices[MaterialID]); 
  result.Position = mul(result.Position,scenedata[0].view );
    result.Position = mul(result.Position,scenedata[0].projection);
@@ -138,12 +141,13 @@ struct VS_OUTPUT
 {
  float4 Position:SV_Position;
 float4 Color: COLOR;
-
 };
 struct input
 {
     float4 Position : SV_Position;
     float3 Normal : NORMAL;
+float3 Posw : WORLD;
+
 };
 
 StructuredBuffer<SHADER_data> scenedata;
@@ -155,13 +159,14 @@ StructuredBuffer<SHADER_data> scenedata;
 // TODO: Part 4b
 float4 main(input inputverty) : SV_TARGET
 {
+
+inputverty.Position = mul(inputverty.Position,inputverty.Posw);
     float3 lightDir = scenedata[0].LightDir.xyz;
     float lightColor = scenedata[0].LightColor;
     float3 surfacePos = inputverty.Position.xyz;
     float3 surfaceNormy = inputverty.Normal;
     float4 surfaceColor = float4(scenedata[0].materials[MaterialID].Kd,1);
     lightDir = normalize(lightDir);
-
     float4 Lastcolor;
     float Lplusratio = clamp(dot((-1) * lightDir, normalize(inputverty.Normal)), 0, 1);
     float3 ambientlight = clamp(Lplusratio + scenedata[0].ambientlight, 0.0f, 1.0f);
@@ -183,6 +188,7 @@ float4 main(input inputverty) : SV_TARGET
     float onehalfvect = normalize((lightDir) + directionalView);
     float frequency = max(pow(clamp((dot(surfaceNormy, onehalfvect)), 0.0f, 1.0f), scenedata[0].materials[MaterialID].Ns),0);
     float4 Lightreflection = lightColor * 0.50f * frequency;
+// lightDir.xyz = float3(250,2.5,200);
     
     
     
@@ -199,6 +205,18 @@ float4 main(input inputverty) : SV_TARGET
 // Creation, Rendering & Cleanup
 class Renderer
 {
+
+
+	//light
+	struct Light
+	{
+		float coneRatio;
+		float LightColor[4];
+		float lightDirection[3];
+		float totalDeltaTime[2];
+		float lightPosition[3];
+		float lightFalloff[2];
+	};
 	// TODO: Part 2b
 #define MAX_SUBMESH_PER_DRAW 1024
 	struct SHADER_Data
@@ -265,6 +283,8 @@ class Renderer
 	GW::MATH::GMATRIXF matrices[MAX_SUBMESH_PER_DRAW];
 	OBJ_ATTRIBUTES matierials[MAX_SUBMESH_PER_DRAW];
 	// TODO: Part 4g
+	GW::INPUT::GInput playerInput;
+	GW::INPUT::GController controllerInput;
 public:
 
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GVulkanSurface _vlk)
@@ -298,7 +318,7 @@ public:
 		proxyMan.ProjectionVulkanLHF(G2D_DEGREE_TO_RADIAN( 65.0f), aspectratio, 0.1f, 100.0f,Projection);
 		model.Projection = Projection;
 
-		GW::MATH::GVECTORF eye{ 0.75f,0.25f,-1.5f,0.0f };
+		GW::MATH::GVECTORF eye{ 0.75f,1.25f,-2.5f,0.0f };
 		GW::MATH::GVECTORF at{ 0.15f,0.75f,0.0f,0.0f };
 		GW::MATH::GVECTORF up{ 0.0f,1.0f,0.0,0.0 };
 		proxyMan.LookAtLHF(eye, at, up, View);
@@ -306,16 +326,17 @@ public:
 		std::cout << "view is at " << View.row4.x << " " << View.row4.y << " " << View.row4.z;
 
 		float LightVectLength = std::sqrt(
-			(LightDir.x * LightDir.x) +
-			(LightDir.y * LightDir.y) +
-			(LightDir.z * LightDir.z));
+			(LightDir.x * LightDir.x) +	  //dot product
+			(LightDir.y * LightDir.y) +	  //dot product
+			(LightDir.z * LightDir.z));	  //dot product
 		LightDir.x /= LightVectLength;
 		LightDir.y /= LightVectLength;
 		LightDir.z /= LightVectLength;
 		model.LightColor = LightColor;
+		GW::MATH::GVector::NormalizeF(LightDir,LightColor);
 		model.LightDir = LightDir;
-		model.camPos = View.row4;
-		model.ambientLight = { 0.25f,0.25f,0.35f,0.0f };
+		model.camPos = View.row1;
+		model.ambientLight = { 0.25f,0.25f,8.35f,0.0f };
 
 		
 		// TODO: Part 2b
@@ -704,6 +725,97 @@ public:
 		
 	}
 	
+	void UpdateCamera() 
+	{
+		using namespace std::chrono;
+		static auto start = std::chrono::system_clock::now();
+		auto TimeTotal = std::chrono::system_clock::now();
+		double timechange = std::chrono::duration<double>(TimeTotal - start).count();
+		// world view and camera view holder
+		GW::MATH::GMATRIXF viewHold;
+		proxyMan.InverseF(World, viewHold);
+
+		float yaxisdown = 0.0f;
+		float yaxisup = 0.0f;
+		float controllerYdown = 0.0f;
+		float controllerYup = 0.0f;
+		const float camSpeed = 0.3f;
+
+		playerInput.GetState(G_KEY_LEFTSHIFT, yaxisdown);
+		playerInput.GetState(G_KEY_SPACE, yaxisup);
+		controllerInput.GetState(0, G_LEFT_TRIGGER_AXIS, controllerYdown);
+		controllerInput.GetState(0, G_RIGHT_TRIGGER_AXIS, controllerYup);
+
+		float totalchangeinY = yaxisup - yaxisdown + controllerYup - controllerYdown;
+		GW::MATH::GVECTORF camposY = { 0,(totalchangeinY * camSpeed) * static_cast<float>(timechange),0,0 };
+		proxyMan.TranslateGlobalF(viewHold, camposY, viewHold);
+
+		float frameSpeed = camSpeed * static_cast<float>(timechange);
+		//wASD SETUP
+		float zaxisfront = 0.0f;
+		float zaxisback = 0.0f;
+		float controllerzchange = 0.0f;
+
+		playerInput.GetState(G_KEY_W, zaxisfront);
+		playerInput.GetState(G_KEY_S, zaxisback);
+		controllerInput.GetState(0, G_LY_AXIS, controllerzchange);
+
+		float totalchangeinz = zaxisfront - zaxisback + controllerzchange;
+
+		float xaxisleft = 0.0f;
+		float xaxisright = 0.0f;
+		float controllerxchange = 0.0f;
+
+		playerInput.GetState(G_KEY_A, xaxisleft);
+		playerInput.GetState(G_KEY_D, xaxisright);
+		controllerInput.GetState(0, G_LX_AXIS, controllerxchange);
+
+		float totalchangeinx = xaxisright - xaxisleft + controllerxchange;
+
+		GW::MATH::GMATRIXF translationMatrix = GW::MATH::GIdentityMatrixF;
+		GW::MATH::GVECTORF translationVector = { (totalchangeinx * frameSpeed),0,(totalchangeinz * frameSpeed),0 };
+		proxyMan.TranslateGlobalF(translationMatrix, translationVector, translationMatrix);
+		proxyMan.MultiplyMatrixF(translationMatrix, viewHold, viewHold);
+
+		//mouse stuff
+
+		float YaxismouseMovement = 0.0f;
+		float XaxismouseMovement = 0.0f;
+		float LefttoRightControls = 0.0f;
+		float UpDownControls = 0.0f;
+
+		unsigned int scHeight;
+		win.GetClientHeight(scHeight);
+		unsigned int scWidth;
+		win.GetClientWidth(scWidth);
+		float Ratio = 0.0f;
+		vlk.GetAspectRatio(Ratio);
+		float thumbspeed = (G2D_PI * static_cast<float>(timechange)) * 0.03;
+
+		controllerInput.GetState(0, G_RX_AXIS, LefttoRightControls);
+		controllerInput.GetState(0, G_RY_AXIS, UpDownControls);
+		UpDownControls *= 0.04;
+		LefttoRightControls *= 0.04;
+
+		GW::GReturn finalresult = playerInput.GetMouseDelta(XaxismouseMovement, YaxismouseMovement);
+
+		if ((G_PASS(finalresult) && finalresult != GW::GReturn::REDUNDANT) || UpDownControls != 0 || LefttoRightControls != 0)
+		{
+			float pitch = G_DEGREE_TO_RADIAN(65.0f) * (YaxismouseMovement) / scHeight + UpDownControls * (thumbspeed);
+			GW::MATH::GMATRIXF pitchMatrix = GW::MATH::GIdentityMatrixF;
+			proxyMan.RotateXLocalF(pitchMatrix, pitch, pitchMatrix);
+			proxyMan.MultiplyMatrixF(pitchMatrix, viewHold, viewHold);
+
+			float yaw = G_DEGREE_TO_RADIAN(65.0f) * Ratio * (XaxismouseMovement) / scWidth + LefttoRightControls * thumbspeed;
+			GW::MATH::GMATRIXF yawMatrix = GW::MATH::GIdentityMatrixF;
+			proxyMan.RotateYLocalF(yawMatrix, yaw, yawMatrix);
+			GW::MATH::GVECTORF camLocation = viewHold.row4;
+			proxyMan.MultiplyMatrixF(viewHold, yawMatrix, viewHold);
+			viewHold.row4 = camLocation;
+		}
+		proxyMan.InverseF(viewHold, World);
+		start = std::chrono::system_clock::now();
+	}
 private:
 	void CleanUp()
 	{

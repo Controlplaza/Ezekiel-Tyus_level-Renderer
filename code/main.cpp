@@ -55,6 +55,7 @@ int main()
 			{
 				if (+vulkan.StartFrame(2, clrAndDepth))
 				{
+					renderer.UpdateCamera();
 					renderer.Render();
 					vulkan.EndFrame(true);
 				}
