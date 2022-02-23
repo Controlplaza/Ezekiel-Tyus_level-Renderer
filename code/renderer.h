@@ -62,13 +62,15 @@ struct OUTPUT_TO_RASTERIZER
 struct VS_INPUT 
 {
 float3 Position:POSITION;
+float3 uv:TEXTCOORD;
 float3 Normal:NORMAL;
+
 };
 
 struct VS_OUTPUT
 {
  float4 Position:SV_Position;
-float4 normal : NORMAL;
+float3 normal : NORMAL;
 float3 Posw : WORLD;
 };
 
@@ -78,10 +80,10 @@ VS_OUTPUT main(VS_INPUT input )
 {
  VS_OUTPUT result;
   result.Position = float4(input.Position,1);
- result.normal = float4(input.Normal,0);
+ result.normal = float3(input.Normal);
 
-   result.Position.z += 0.75;
-    result.Position.y -= 0.75;
+  // result.Position.z += 0.75;
+  //  result.Position.y -= 0.75;
 //return float4 (inputvertex,-0.75f,0.75f)
 
 matrix spoopy = {     1,0,0,0,
@@ -93,7 +95,7 @@ matrix spoopy = {     1,0,0,0,
     result.Position = mul(result.Position,scenedata[0].matrices[MaterialID]); 
  result.Position = mul(result.Position,scenedata[0].view );
    result.Position = mul(result.Position,scenedata[0].projection);
-result.normal = mul(result.normal,scenedata[0].matrices[MaterialID]);
+result.normal = mul(result.normal,(float3x3)scenedata[0].matrices[MaterialID]);
 
 	return result;
 }
@@ -127,7 +129,7 @@ struct OBJ_ATTRIBUTES
 #define MAX_SUBMESH_PER_DRAW 1024
 struct SHADER_data
 {
-    float3 LightDir;
+    float4 LightDir;
     float4 LightColor;
     matrix view;
     matrix projection;
@@ -160,41 +162,35 @@ StructuredBuffer<SHADER_data> scenedata;
 float4 main(input inputverty) : SV_TARGET
 {
 
-inputverty.Position = mul(inputverty.Position,inputverty.Posw);
-    float3 lightDir = scenedata[0].LightDir.xyz;
+
+    float3 lightDir = normalize(scenedata[0].LightDir.xyz);
+    lightDir.xyz = normalize(float3(-1,-1,2));
+
     float lightColor = scenedata[0].LightColor;
     float3 surfacePos = inputverty.Position.xyz;
-    float3 surfaceNormy = inputverty.Normal;
+    float3 surfaceNormy = normalize(inputverty.Normal);
     float4 surfaceColor = float4(scenedata[0].materials[MaterialID].Kd,1);
-    lightDir = normalize(lightDir);
-    float4 Lastcolor;
-    float Lplusratio = clamp(dot((-1) * lightDir, normalize(inputverty.Normal)), 0, 1);
-    float3 ambientlight = clamp(Lplusratio + scenedata[0].ambientlight, 0.0f, 1.0f);
-    float direct = clamp(dot((-1) * normalize(scenedata[0].LightDir), normalize(inputverty.Normal)), 0, 1);
-    
-    Lastcolor = direct * scenedata[0].LightColor * float4(scenedata[0].materials[MaterialID].Kd, 1);
-    
+  float4 ambientlight = float4 ( 0.25f, 0.25f, 0.35f, 0 );
+       
+    float lightRatio = clamp(dot(-lightDir, surfaceNormy), 0, 1);
+    float4 finalColor = lightRatio * lightColor * surfaceColor;
+//return finalColor;
+
     float3 reflect = reflect(lightDir.xyz, surfaceNormy.xyz);
-    float3 onCam = normalize(scenedata[0].cameraPos - surfacePos);
+    float3 onCam = normalize(scenedata[0].cameraPos.xyz - surfacePos);
     float speciDot = saturate(dot(reflect, onCam));
     speciDot = pow(speciDot, scenedata[0].materials[MaterialID].Ns);
-    float speciLast = float4(1.0f, 1.0f,1.0f, 0) * surfaceColor * speciDot;
-    
+    float speciLast = float4(1.0f, 1.0f, 1.0f, 0) * surfaceColor * speciDot;
+
     float angle = saturate(dot(surfaceNormy, -lightDir));
     float4 directlighting = surfaceColor * lightColor * angle;
     float4 indirectlighting = scenedata[0].ambientlight * surfaceColor;
-    
-    float3 directionalView = normalize(scenedata[0].cameraPos - surfacePos);
+ float3 directionalView = normalize(scenedata[0].cameraPos.xyz - surfacePos);
     float onehalfvect = normalize((lightDir) + directionalView);
-    float frequency = max(pow(clamp((dot(surfaceNormy, onehalfvect)), 0.0f, 1.0f), scenedata[0].materials[MaterialID].Ns),0);
+    float frequency = max(pow(clamp((dot(surfaceNormy, onehalfvect)), 0.0f, 1.0f), scenedata[0].materials[MaterialID].Ns), 0);
     float4 Lightreflection = lightColor * 0.50f * frequency;
-// lightDir.xyz = float3(250,2.5,200);
-    
-    
-    
-    
-    //float4 color = scenedata[0].materials[MaterialID].Kd;
-    return Lastcolor + Lightreflection;
+
+      return finalColor += ambientlight+=speciLast ;
 //return 1.0f,0.0f,0.0f;
 
 	// TODO: Part 3a
@@ -318,7 +314,7 @@ public:
 		proxyMan.ProjectionVulkanLHF(G2D_DEGREE_TO_RADIAN( 65.0f), aspectratio, 0.1f, 100.0f,Projection);
 		model.Projection = Projection;
 
-		GW::MATH::GVECTORF eye{ 0.75f,1.25f,-2.5f,0.0f };
+		GW::MATH::GVECTORF eye{ 0.75f,0.25f,-1.5f,0.0f };
 		GW::MATH::GVECTORF at{ 0.15f,0.75f,0.0f,0.0f };
 		GW::MATH::GVECTORF up{ 0.0f,1.0f,0.0,0.0 };
 		proxyMan.LookAtLHF(eye, at, up, View);
