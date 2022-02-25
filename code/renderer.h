@@ -3,6 +3,9 @@
 #include"FSLogo.h"
 #include "shaderc/shaderc.h" // needed for compiling shaders at runtime
 #include <chrono>
+#include <fstream>
+#include <iostream>
+
 #ifdef _WIN32 // must use MT platform DLL libraries on windows
 	#pragma comment(lib, "shaderc_combined.lib") 
 #endif
@@ -171,26 +174,30 @@ float4 main(input inputverty) : SV_TARGET
     float3 surfaceNormy = normalize(inputverty.Normal);
     float4 surfaceColor = float4(scenedata[0].materials[MaterialID].Kd,1);
   float4 ambientlight = float4 ( 0.25f, 0.25f, 0.35f, 0 );
-       
     float lightRatio = clamp(dot(-lightDir, surfaceNormy), 0, 1);
-    float4 finalColor = lightRatio * lightColor * surfaceColor;
+
+      
+     float4 finalColor = lightColor * surfaceColor *saturate(lightRatio);;
 //return finalColor;
 
     float3 reflect = reflect(lightDir.xyz, surfaceNormy.xyz);
     float3 onCam = normalize(scenedata[0].cameraPos.xyz - surfacePos);
-    float speciDot = saturate(dot(reflect, onCam));
+    float speciDot = dot(reflect,onCam);
     speciDot = pow(speciDot, scenedata[0].materials[MaterialID].Ns);
-    float speciLast = float4(1.0f, 1.0f, 1.0f, 0) * surfaceColor * speciDot;
+    float speciLast = float4(1.0f, 1.0f, 1.0f, 0) * surfaceColor * pow(saturate(speciDot), scenedata[0].materials[MaterialID].Ns);
 
     float angle = saturate(dot(surfaceNormy, -lightDir));
     float4 directlighting = surfaceColor * lightColor * angle;
     float4 indirectlighting = scenedata[0].ambientlight * surfaceColor;
+  float Angularattentuiation = dot(surfaceNormy, -lightDir);
+    float4 finaldirectional = lightColor * surfaceColor * saturate(Angularattentuiation);
+
  float3 directionalView = normalize(scenedata[0].cameraPos.xyz - surfacePos);
     float onehalfvect = normalize((lightDir) + directionalView);
     float frequency = max(pow(clamp((dot(surfaceNormy, onehalfvect)), 0.0f, 1.0f), scenedata[0].materials[MaterialID].Ns), 0);
     float4 Lightreflection = lightColor * 0.50f * frequency;
-
-      return finalColor += ambientlight+=speciLast ;
+finalColor = speciLast * ambientlight * finaldirectional * Lightreflection;
+      return finalColor  += finaldirectional += speciLast;
 //return 1.0f,0.0f,0.0f;
 
 	// TODO: Part 3a
@@ -296,6 +303,7 @@ public:
 		{
 			matrices[i].data;
 		}
+		playerInput.Create(win);
 		proxyMan.Create();
 		std::chrono::time_point<std::chrono::system_clock> start, end;
 		start = std::chrono::system_clock::now();
@@ -319,7 +327,10 @@ public:
 		GW::MATH::GVECTORF up{ 0.0f,1.0f,0.0,0.0 };
 		proxyMan.LookAtLHF(eye, at, up, View);
 		model.View = View;
-		std::cout << "view is at " << View.row4.x << " " << View.row4.y << " " << View.row4.z;
+		proxyMan.InverseF(View, View);
+		//std::cout << "view is at " << View.row4.x << " " << View.row4.y << " " << View.row4.z;
+		std::fstream gamelev;
+
 
 		float LightVectLength = std::sqrt(
 			(LightDir.x * LightDir.x) +	  //dot product
@@ -665,6 +676,11 @@ public:
 	}
 	void Render()
 	{
+
+		
+
+		
+
 		// TODO: Part 2a
 		
 		LightDir.x = -1;
@@ -681,6 +697,7 @@ public:
 		LightColor.w = 1.0f;
 
 		// TODO: Part 4d
+		proxyMan.InverseF(View,model.View);
 		// grab the current Vulkan commandBuffer
 		unsigned int currentBuffer;
 		vlk.GetSwapchainCurrentImage(currentBuffer);
@@ -700,6 +717,7 @@ public:
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 		
 		// now we can draw
+		GvkHelper::write_to_buffer(device, storageMemory[currentBuffer], &model, sizeof(model));
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexHandle, offsets);
 		// TODO: Part 1h
@@ -729,13 +747,14 @@ public:
 		double timechange = std::chrono::duration<double>(TimeTotal - start).count();
 		// world view and camera view holder
 		GW::MATH::GMATRIXF viewHold;
-		proxyMan.InverseF(World, viewHold);
+		viewHold = View;
+		
 
 		float yaxisdown = 0.0f;
 		float yaxisup = 0.0f;
 		float controllerYdown = 0.0f;
 		float controllerYup = 0.0f;
-		const float camSpeed = 0.3f;
+		const float camSpeed = 4.8f;
 
 		playerInput.GetState(G_KEY_LEFTSHIFT, yaxisdown);
 		playerInput.GetState(G_KEY_SPACE, yaxisup);
@@ -752,8 +771,8 @@ public:
 		float zaxisback = 0.0f;
 		float controllerzchange = 0.0f;
 
-		playerInput.GetState(G_KEY_W, zaxisfront);
-		playerInput.GetState(G_KEY_S, zaxisback);
+		playerInput.GetState(G_KEY_W, zaxisfront); //a
+		playerInput.GetState(G_KEY_S, zaxisback);//d
 		controllerInput.GetState(0, G_LY_AXIS, controllerzchange);
 
 		float totalchangeinz = zaxisfront - zaxisback + controllerzchange;
@@ -762,8 +781,8 @@ public:
 		float xaxisright = 0.0f;
 		float controllerxchange = 0.0f;
 
-		playerInput.GetState(G_KEY_A, xaxisleft);
-		playerInput.GetState(G_KEY_D, xaxisright);
+		playerInput.GetState(G_KEY_A, xaxisleft);//s
+		playerInput.GetState(G_KEY_D, xaxisright);//w
 		controllerInput.GetState(0, G_LX_AXIS, controllerxchange);
 
 		float totalchangeinx = xaxisright - xaxisleft + controllerxchange;
@@ -809,9 +828,10 @@ public:
 			proxyMan.MultiplyMatrixF(viewHold, yawMatrix, viewHold);
 			viewHold.row4 = camLocation;
 		}
-		proxyMan.InverseF(viewHold, World);
+		View = viewHold;
 		start = std::chrono::system_clock::now();
 	}
+
 private:
 	void CleanUp()
 	{
