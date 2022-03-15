@@ -9,7 +9,14 @@ ADD_DEFINITIONS(-D_UNICODE)
 if (WIN32)
 	# shaderc_combined.lib in Vulkan requires this for debug & release (runtime shader compiling)
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MD")
-	add_executable (Assignment_2_Vulkan main.cpp renderer.h)
+	add_executable (Assignment_2_Vulkan 
+main.cpp 
+renderer.h
+Level_Data.h
+Level_Data.cpp
+
+
+)
 	target_include_directories(Assignment_2_Vulkan PUBLIC $ENV{VULKAN_SDK}/Include/)
 	target_link_directories(Assignment_2_Vulkan PUBLIC $ENV{VULKAN_SDK}/Lib/)
 endif(WIN32)

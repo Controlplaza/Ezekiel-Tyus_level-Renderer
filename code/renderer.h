@@ -5,6 +5,7 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include "../code/h2bParser.h"
 
 #ifdef _WIN32 // must use MT platform DLL libraries on windows
 	#pragma comment(lib, "shaderc_combined.lib") 
@@ -244,7 +245,7 @@ class Renderer
 	GW::SYSTEM::GWindow win;
 	GW::GRAPHICS::GVulkanSurface vlk;
 	GW::CORE::GEventReceiver shutdown;
-	
+    
 	// what we need at a minimum to draw a triangle
 	VkDevice device = nullptr;
 	VkBuffer vertexHandle = nullptr;
@@ -329,8 +330,6 @@ public:
 		model.View = View;
 		proxyMan.InverseF(View, View);
 		//std::cout << "view is at " << View.row4.x << " " << View.row4.y << " " << View.row4.z;
-		std::fstream gamelev;
-
 
 		float LightVectLength = std::sqrt(
 			(LightDir.x * LightDir.x) +	  //dot product
@@ -679,8 +678,6 @@ public:
 
 		
 
-		
-
 		// TODO: Part 2a
 		
 		LightDir.x = -1;
@@ -831,7 +828,33 @@ public:
 		View = viewHold;
 		start = std::chrono::system_clock::now();
 	}
+	void LoadLevel() 
+	{
+		H2B::Parser parsy;
+	
+		parsy.Parse("barrel.h2b");
+		
+		
+		std::string line;
+		std::fstream myFile;
+		myFile.open("../GameLevel.txt", std::ios::in);
+		char buffer[128];
+		myFile.getline(buffer, 128);
 
+		if (myFile.is_open())
+		{
+
+			/*while (std::getline(myFile,line))
+			{
+				std::cout << line << '\n';			
+			}*/
+			myFile.close();
+		}
+		
+	}
+
+
+	
 private:
 	void CleanUp()
 	{

@@ -58,7 +58,8 @@ int main()
 				{
 					renderer.UpdateCamera();
 					renderer.Render();
-					
+					renderer.LoadLevel();
+
 					vulkan.EndFrame(true);
 				}
 			}
