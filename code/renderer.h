@@ -8,35 +8,31 @@
 #include "../code/h2bParser.h"
 
 #ifdef _WIN32 // must use MT platform DLL libraries on windows
-	#pragma comment(lib, "shaderc_combined.lib") 
+#pragma comment(lib, "shaderc_combined.lib") 
 #endif
+
 // Simple Vertex Shader
 const char* vertexShaderSource = R"(
 // TODO: 2i
 
-#define MAX_SUBMESH_PER_DRAW 1024
 #pragma pack_matrix(row_major)
-[[vk::push_constant]] 
+#define MAX_SUBMESH_PER_DRAW 1024
 
 
-cbuffer SHADER_VARS
-{
-    uint MaterialID;
-};
 // an ultra simple hlsl vertex shader
 // TODO: Part 2b
 struct OBJ_ATTRIBUTES
 {
-    float3    Kd; // diffuse reflectivity
-	float1	    d; // dissolve (transparency) 
-	float3    Ks; // specular reflectivity
-	float1       Ns; // specular exponent
-	float3    Ka; // ambient reflectivity
-	float1       sharpness; // local reflection map sharpness
-	float3    Tf; // transmission filter
-	float1       Ni; // optical density (index of refraction)
-	float3    Ke; // emissive reflectivity
-	uint   illum; // illumination model
+    float3 Kd; // diffuse reflectivity
+    float1 d; // dissolve (transparency) 
+    float3 Ks; // specular reflectivity
+    float1 Ns; // specular exponent
+    float3 Ka; // ambient reflectivity
+    float1 sharpness; // local reflection map sharpness
+    float3 Tf; // transmission filter
+    float1 Ni; // optical density (index of refraction)
+    float3 Ke; // emissive reflectivity
+    uint illum; // illumination model
 };
 struct SHADER_data
 {
@@ -51,70 +47,71 @@ struct SHADER_data
     float4 ambientlight;
 };
 
-StructuredBuffer<SHADER_data>scenedata;
+StructuredBuffer<SHADER_data> scenedata;
+[[vk::push_constant]] 
+cbuffer MESHINDEX
+{
+
+    float4x4 meshMatrix;
+    uint meshID;
+};
 // TODO: Part 4g
 // TODO: Part 2i
 
 // TODO: Part 3e
 // TODO: Part 4a
-struct OUTPUT_TO_RASTERIZER
-{
-    float4 posH : SV_Position;
-    float3 nrmW : NORMAL;  
-};
+//struct OUTPUT_TO_RASTERIZER
+//{
+//    float4 posH : SV_Position;
+//    float3 nrmW : nrm;  
+//};
 // TODO: Part 1f
-struct VS_INPUT 
+struct VS_INPUT
 {
-float3 Position:POSITION;
-float3 uv:TEXTCOORD;
-float3 Normal:NORMAL;
+    float3 pos : POSITION;
+    float3 uvw : UVW;
+    float3 nrm : NORMAL;
 
 };
 
 struct VS_OUTPUT
 {
- float4 Position:SV_Position;
-float3 normal : NORMAL;
-float3 Posw : WORLD;
+    float4 pos : SV_POSITION;
+    float4 nrm : NORMAL;
+    float4 Posw : POSITION;
 };
 
 
 // TODO: Part 4b
-VS_OUTPUT main(VS_INPUT input ) 
+VS_OUTPUT main(VS_INPUT input)
 {
- VS_OUTPUT result;
-  result.Position = float4(input.Position,1);
- result.normal = float3(input.Normal);
+ 
+    VS_OUTPUT griff;
 
-  // result.Position.z += 0.75;
-  //  result.Position.y -= 0.75;
-//return float4 (inputvertex,-0.75f,0.75f)
+    griff.pos = float4(input.pos, 1);
+    griff.nrm = float4(input.nrm, 0);
 
-matrix spoopy = {     1,0,0,0,
-                      0,1,0,0,
-                      0,0,1,0,
-                      0 ,0,0,1};
-    //result.Position = mul( result.Position,result.Posw);
-    
-    result.Position = mul(result.Position,scenedata[0].matrices[MaterialID]); 
- result.Position = mul(result.Position,scenedata[0].view );
-   result.Position = mul(result.Position,scenedata[0].projection);
-result.normal = mul(result.normal,(float3x3)scenedata[0].matrices[MaterialID]);
 
-	return result;
+    griff.pos = mul(griff.pos, meshMatrix);
+    griff.Posw = griff.pos;
+    griff.pos = mul(griff.pos, scenedata[0].view);
+    griff.pos = mul(griff.pos, scenedata[0].projection);
+
+    griff.nrm = mul(griff.pos, scenedata[0].matrices[meshID]);
+
+    return griff;
+
 }
 )";
 // Simple Pixel Shader
 const char* pixelShaderSource = R"(
-// TODO: Part 2b
-// TODO: Part 2b
-[[vk::push_constant]] 
-cbuffer SHADER_VARS
-{
-    uint MaterialID;
-  
 
-};
+
+#define MAX_SUBMESH_PER_DRAW 1024
+
+
+// an ultra simple hlsl vertex shader
+// TODO: Part 2b
 struct OBJ_ATTRIBUTES
 {
     float3 Kd; // diffuse reflectivity
@@ -127,10 +124,7 @@ struct OBJ_ATTRIBUTES
     float1 Ni; // optical density (index of refraction)
     float3 Ke; // emissive reflectivity
     uint illum; // illumination model
-
 };
-
-#define MAX_SUBMESH_PER_DRAW 1024
 struct SHADER_data
 {
     float4 LightDir;
@@ -139,73 +133,251 @@ struct SHADER_data
     matrix projection;
     matrix matrices[MAX_SUBMESH_PER_DRAW];
     OBJ_ATTRIBUTES materials[MAX_SUBMESH_PER_DRAW];
-    
+ 
     float4 cameraPos;
     float4 ambientlight;
 };
-struct VS_OUTPUT
-{
- float4 Position:SV_Position;
-float4 Color: COLOR;
-};
-struct input
-{
-    float4 Position : SV_Position;
-    float3 Normal : NORMAL;
-float3 Posw : WORLD;
-
-};
 
 StructuredBuffer<SHADER_data> scenedata;
-
+[[vk::push_constant]] 
+cbuffer MESHINDEX
+{
+    float4x4 meshMatrix;
+    uint meshID;
+};
 // TODO: Part 4g
 // TODO: Part 2i
+
 // TODO: Part 3e
-// an ultra simple hlsl pixel shader
-// TODO: Part 4b
-float4 main(input inputverty) : SV_TARGET
+// TODO: Part 4a
+//struct OUTPUT_TO_RASTERIZER
+//{
+//    float4 posH : SV_Position;
+//    float3 nrmW : nrm;  
+//};
+// TODO: Part 1f
+struct VS_INPUT
 {
+    float3 pos : POSITION;
+    float3 uvw : UVW;
+    float3 nrm : NORMAL;
+
+};
+
+struct VS_OUTPUT
+{
+    float4 pos : SV_POSITION;
+    float4 nrm : NORMAL;
+    float4 Posw : POSITION;
+};
+float4 main(VS_OUTPUT inputverty) : SV_TARGET
+{
+    float3 lightdirection = normalize(scenedata[0].LightDir.xyz);
+    float4 lightcolor = scenedata[0].LightColor;
+    float3 surfacepos = inputverty.pos.xyz;
+    float3 surfacenormal = normalize(inputverty.nrm.xyz);
+    float4 surfacecolor = float4(scenedata[0].materials[meshID].Kd, 1);
 
 
-    float3 lightDir = normalize(scenedata[0].LightDir.xyz);
-    lightDir.xyz = normalize(float3(-1,-1,2));
+    float4 finalcolor;
+    float lightratio = clamp(dot(-lightdirection, surfacenormal), 0, 1);
+    float4 ambient = scenedata[0].ambientlight * surfacecolor;
 
-    float lightColor = scenedata[0].LightColor;
-    float3 surfacePos = inputverty.Position.xyz;
-    float3 surfaceNormy = normalize(inputverty.Normal);
-    float4 surfaceColor = float4(scenedata[0].materials[MaterialID].Kd,1);
-  float4 ambientlight = float4 ( 0.25f, 0.25f, 0.35f, 0 );
-    float lightRatio = clamp(dot(-lightDir, surfaceNormy), 0, 1);
 
-      
-     float4 finalColor = lightColor * surfaceColor *saturate(lightRatio);;
-//return finalColor;
+    finalcolor = lightratio * scenedata[0].LightColor * surfacecolor;
 
-    float3 reflect = reflect(lightDir.xyz, surfaceNormy.xyz);
-    float3 onCam = normalize(scenedata[0].cameraPos.xyz - surfacePos);
-    float speciDot = dot(reflect,onCam);
-    speciDot = pow(speciDot, scenedata[0].materials[MaterialID].Ns);
-    float speciLast = float4(1.0f, 1.0f, 1.0f, 0) * surfaceColor * pow(saturate(speciDot), scenedata[0].materials[MaterialID].Ns);
+    finalcolor += ambient;
 
-    float angle = saturate(dot(surfaceNormy, -lightDir));
-    float4 directlighting = surfaceColor * lightColor * angle;
-    float4 indirectlighting = scenedata[0].ambientlight * surfaceColor;
-  float Angularattentuiation = dot(surfaceNormy, -lightDir);
-    float4 finaldirectional = lightColor * surfaceColor * saturate(Angularattentuiation);
 
- float3 directionalView = normalize(scenedata[0].cameraPos.xyz - surfacePos);
-    float onehalfvect = normalize((lightDir) + directionalView);
-    float frequency = max(pow(clamp((dot(surfaceNormy, onehalfvect)), 0.0f, 1.0f), scenedata[0].materials[MaterialID].Ns), 0);
-    float4 Lightreflection = lightColor * 0.50f * frequency;
-finalColor = speciLast * ambientlight * finaldirectional * Lightreflection;
-      return finalColor  += finaldirectional += speciLast;
-//return 1.0f,0.0f,0.0f;
 
-	// TODO: Part 3a
-	// TODO: Part 4c
-	// TODO: Part 4g (half-vector or reflect method your choice)
+
+    float3 reflect = reflect(lightdirection, surfacenormal);
+    float3 tocam = normalize(scenedata[0].cameraPos.xyz - inputverty.Posw.xyz);
+    float specdot = dot(reflect, tocam);
+    specdot = pow(specdot, scenedata[0].materials[meshID].Ns * 0.5f);
+    float4 specfinalcolor = float4(1.0f, 1.0f, 1.0f, 0.0f) * lightcolor * saturate(specdot);
+
+    finalcolor += specfinalcolor;
+    return finalcolor;
+
 }
 )";
+
+class LevelRenderer
+{
+public:
+
+	VkBuffer IndexHandle = nullptr;
+	VkDeviceMemory IndexData = nullptr;
+	VkDevice Device = nullptr;
+	VkBuffer VertexHandle = nullptr;
+	VkDeviceMemory VertexData = nullptr;
+	H2B::VERTEX* ModoVerts;
+	int* logoIndices;
+	unsigned vertexCount;
+	unsigned indexCount;
+	unsigned materialCount;
+	std::vector<H2B::VERTEX> vertices;
+	std::vector<unsigned > indices;
+	std::vector<H2B::MATERIAL> materials;
+	std::vector<H2B::BATCH> batches;
+	std::vector<H2B::MESH> meshes;
+	GW::MATH::GMATRIXF MeshMatrix;
+
+	unsigned meshCount;
+
+	LevelRenderer(std::string model)
+	{
+		//varibales using all throughout function
+
+		H2B::Parser parsy;
+		//model variables to parse variables
+
+
+		std::string meshvar;
+		int itemId = model.find_first_of('.');
+		meshvar = model.substr(0, itemId);
+		//model names
+		//std::string modAddress = "C:/Users/ezeki/OneDrive/Desktop/Ezekiel - Tyus_level - Renderer/codelevel stuff";
+		std::string modAddress = "../level stuff/";
+		std::string Mesh2H2bname = modAddress.append(meshvar);
+		Mesh2H2bname = Mesh2H2bname.append(".h2b");
+		const char* meshparsnameschar = Mesh2H2bname.c_str();
+		//pasring of h2b files
+		parsy.Parse(meshparsnameschar);
+		vertexCount = parsy.vertexCount;
+		indexCount = parsy.indexCount;
+		materialCount = parsy.materialCount;
+		meshCount = parsy.meshCount;
+		vertices = parsy.vertices;
+		indices = parsy.indices;
+		materials = parsy.materials;
+		batches = parsy.batches;
+		meshes = parsy.meshes;
+
+		//populating materials
+		for (size_t i = 0; i < parsy.materialCount; i++)
+		{
+			std::cout << Mesh2H2bname << " ";
+			materials[i].attrib = parsy.materials[i].attrib;
+			//parsy.materials[i].attrib = materials[i].attrib;// puts the materials from h2b parsed info to regular info
+		}
+		//open file
+		std::string line;
+		std::fstream myFile;
+		myFile.open("../GameLevel.txt", std::ios::in);
+
+		if (myFile.is_open())
+		{
+			int linecounter = 0;
+			while (std::getline(myFile, line))
+			{
+				std::cout << line << '\n';
+
+				if (line == "MESH")
+				{
+					while (std::getline(myFile, line))
+					{
+						if (line == model)
+						{
+							while (std::getline(myFile, line) && linecounter != 4)
+							{
+
+
+								linecounter++;
+								GW::MATH::GMATRIXF linematrix;
+								if (linecounter == 1)
+								{
+									std::vector<std::string> modelcoordinates;
+									std::string newline = line.substr(13);
+									std::stringstream stream(newline);
+									while (stream.good())
+									{
+										std::string numbers;
+										std::getline(stream, numbers, ',');
+										modelcoordinates.push_back(numbers);
+									}
+									linematrix.row1.x = std::stof(modelcoordinates[0]);
+									linematrix.row1.y = std::stof(modelcoordinates[1]);
+									linematrix.row1.z = std::stof(modelcoordinates[2]);
+									linematrix.row1.w = std::stof(modelcoordinates[3]);
+								}
+								if (linecounter == 2)
+								{
+									std::vector<std::string> modelcoordinates2;
+									std::string newline2 = line.substr(13);
+									std::stringstream stream2(newline2);
+
+									while (stream2.good())
+									{
+										std::string numbers2;
+										std::getline(stream2, numbers2, ',');
+										modelcoordinates2.push_back(numbers2);
+									}
+									linematrix.row2.x = std::stof(modelcoordinates2[0]);
+									linematrix.row2.y = std::stof(modelcoordinates2[1]);
+									linematrix.row2.z = std::stof(modelcoordinates2[2]);
+									linematrix.row2.w = std::stof(modelcoordinates2[3]);
+								}
+								if (linecounter == 3)
+								{
+									std::vector<std::string> modelcoordinates3;
+									std::string newline3 = line.substr(13);
+									std::stringstream stream3(newline3);
+
+									while (stream3.good())
+									{
+										std::string numbers3;
+										std::getline(stream3, numbers3, ',');
+										modelcoordinates3.push_back(numbers3);
+									}
+									linematrix.row3.x = std::stof(modelcoordinates3[0]);
+									linematrix.row3.y = std::stof(modelcoordinates3[1]);
+									linematrix.row3.z = std::stof(modelcoordinates3[2]);
+									linematrix.row3.w = std::stof(modelcoordinates3[3]);
+								}
+
+								if (linecounter == 4)
+								{
+									std::vector<std::string> modelcoordinates4;
+									std::string newline4 = line.substr(13);
+									std::stringstream stream4(newline4);
+									while (stream4.good())
+									{
+										std::string numbers4;
+										std::getline(stream4, numbers4, ',');
+										modelcoordinates4.push_back(numbers4);
+									}
+									linematrix.row4.x = std::stof(modelcoordinates4[0]);
+									linematrix.row4.y = std::stof(modelcoordinates4[1]);
+									linematrix.row4.z = std::stof(modelcoordinates4[2]);
+									linematrix.row4.w = std::stof(modelcoordinates4[3]);
+									MeshMatrix = linematrix;
+									linecounter = 0;
+									break;
+								}
+							}
+						}
+						else { break; }
+
+					}
+				}
+			}
+			myFile.close();
+		}
+		ModoVerts = new H2B::VERTEX[vertexCount];
+		for (size_t i = 0; i < vertexCount; i++)
+		{
+			ModoVerts[i] = vertices[i];
+		}
+		logoIndices = new int[indexCount];
+		for (size_t i = 0; i < indexCount; i++)
+		{
+			logoIndices[i] = indices[i];
+		}
+	};
+};
+
 // Creation, Rendering & Cleanup
 class Renderer
 {
@@ -226,45 +398,45 @@ class Renderer
 	struct SHADER_Data
 	{
 		//view data
-		
+
 		GW::MATH::GVECTORF LightDir;
 		GW::MATH::GVECTORF LightColor;
 		GW::MATH::GMATRIXF View;
 		GW::MATH::GMATRIXF Projection;
 		//lighting data
 		GW::MATH::GMATRIXF matrices[MAX_SUBMESH_PER_DRAW];
-		OBJ_ATTRIBUTES matierials[MAX_SUBMESH_PER_DRAW];
+		H2B::ATTRIBUTES matierials[MAX_SUBMESH_PER_DRAW];
 
 		GW::MATH::GVECTORF camPos;
 		GW::MATH::GVECTORF ambientLight;
-	
+
 
 	};
-	SHADER_Data model ;
+	SHADER_Data model;
 	// proxy handles
 	GW::SYSTEM::GWindow win;
 	GW::GRAPHICS::GVulkanSurface vlk;
 	GW::CORE::GEventReceiver shutdown;
-    
+
 	// what we need at a minimum to draw a triangle
 	VkDevice device = nullptr;
 	VkBuffer vertexHandle = nullptr;
 	VkDeviceMemory vertexData = nullptr;
-	GW::MATH::GVECTORF LightDir  = { -1.0f, -1.0f, 2.0f, 0.0f };
+	GW::MATH::GVECTORF LightDir = { -1.0f, -1.0f, 2.0f, 0.0f };
 	GW::MATH::GVECTORF LightColor = { 0.9f, 0.9, 1.0f, 1.0f };
 
 	// TODO: Part 1g
 	VkBuffer IndexHandle = nullptr;
 	VkDeviceMemory indexData = nullptr;
 	// TODO: Part 2c
-	
+
 	std::vector<VkDeviceMemory> storageMemory;
 	std::vector<VkDevice> storagedevice;
 	std::vector<VkBuffer> storageBuffer;
-	
 
-	
-	
+
+
+
 	VkShaderModule vertexShader = nullptr;
 	VkShaderModule pixelShader = nullptr;
 	// pipeline settings for drawing (also required)
@@ -275,10 +447,10 @@ class Renderer
 	// TODO: Part 2f
 	VkDescriptorPool descriptorPool;
 	// TODO: Part 2g
-	 std::vector<VkDescriptorSet>descriptorSet;
-		// TODO: Part 4f
-		
-	// TODO: Part 2a
+	std::vector<VkDescriptorSet>descriptorSet;
+	// TODO: Part 4f
+
+// TODO: Part 2a
 	GW::MATH::GMATRIXF World;
 	GW::MATH::GMATRIXF View;
 	GW::MATH::GMATRIXF Projection;
@@ -289,8 +461,14 @@ class Renderer
 	// TODO: Part 4g
 	GW::INPUT::GInput playerInput;
 	GW::INPUT::GController controllerInput;
+	std::vector<LevelRenderer*>OBJMESH;
 public:
 
+	struct MeshIndex
+	{
+		GW::MATH::GMATRIXF meshMatrix;
+		unsigned int meshID;
+	};
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GVulkanSurface _vlk)
 	{
 		win = _win;
@@ -299,7 +477,7 @@ public:
 		win.GetClientWidth(width);
 		win.GetClientHeight(height);
 		// TODO: Part 2a
-	
+
 		for (int i = 0; i < FSLogo_vertexcount; i++)
 		{
 			matrices[i].data;
@@ -316,11 +494,11 @@ public:
 		World = GW::MATH::GIdentityMatrixF;
 		View = GW::MATH::GIdentityMatrixF;
 		proxyMan.RotateYLocalF(World, elapsed_seconds.count(), World); // void render
-		proxyMan.TranslateLocalF(View,translatevar,World); //void render
+		proxyMan.TranslateLocalF(View, translatevar, World); //void render
 		float aspectratio = 0.0f;
 		vlk.GetAspectRatio(aspectratio);
-		
-		proxyMan.ProjectionVulkanLHF(G2D_DEGREE_TO_RADIAN( 65.0f), aspectratio, 0.1f, 100.0f,Projection);
+
+		proxyMan.ProjectionVulkanLHF(G2D_DEGREE_TO_RADIAN(65.0f), aspectratio, 0.1f, 100.0f, Projection);
 		model.Projection = Projection;
 
 		GW::MATH::GVECTORF eye{ 0.75f,0.25f,-1.5f,0.0f };
@@ -329,6 +507,12 @@ public:
 		proxyMan.LookAtLHF(eye, at, up, View);
 		model.View = View;
 		proxyMan.InverseF(View, View);
+
+		//levelmodel containerss
+
+		std::vector<GW::MATH::GMATRIXF> matrixcounter;
+		std::vector<unsigned int> materialID;
+		std::vector<H2B::ATTRIBUTES> Model_Materials;
 		//std::cout << "view is at " << View.row4.x << " " << View.row4.y << " " << View.row4.z;
 
 		float LightVectLength = std::sqrt(
@@ -339,12 +523,65 @@ public:
 		LightDir.y /= LightVectLength;
 		LightDir.z /= LightVectLength;
 		model.LightColor = LightColor;
-		GW::MATH::GVector::NormalizeF(LightDir,LightColor);
+		GW::MATH::GVector::NormalizeF(LightDir, LightColor);
 		model.LightDir = LightDir;
 		model.camPos = View.row1;
 		model.ambientLight = { 0.25f,0.25f,8.35f,0.0f };
 
-		
+		std::string fileAddress = "../GameLevel.txt";
+		std::string line;
+		std::fstream myfile(fileAddress);
+		if (myfile.is_open())
+		{
+			int lineCount = 0;
+			while (std::getline(myfile, line))
+			{
+				if (line == "MESH")
+				{
+					while (std::getline(myfile, line))
+					{
+						lineCount++;
+						GW::MATH::GMATRIXF objectMaterial;
+						if (lineCount == 1)
+						{
+							std::string meshy;
+							meshy += line;
+							LevelRenderer* levelinstance = new LevelRenderer(meshy);
+							OBJMESH.push_back(levelinstance);
+							lineCount = 0;
+							break;
+						}
+					}
+				}
+
+
+			}
+			myfile.close();
+		}
+
+		//loading meshes
+		int MeshCount = 0;
+		for (size_t i = 0; i < OBJMESH.size(); i++)
+		{
+			for (size_t j = 0; j < OBJMESH[i]->meshCount; j++)
+			{
+				model.matrices[MeshCount] = OBJMESH[i]->MeshMatrix;
+				MeshCount++;
+			}
+		}
+
+		for (size_t i = 0; i < OBJMESH.size(); i++)
+		{
+			for (size_t j = 0; j < OBJMESH[i]->meshCount; j++)
+			{
+				Model_Materials.push_back(OBJMESH[i]->materials[j].attrib);
+			}
+		}
+
+		for (size_t i = 0; i < Model_Materials.size(); i++)
+		{
+			model.matierials[i] = Model_Materials[i];
+		}
 		// TODO: Part 2b
 		// TODO: Part 4g
 		// TODO: part 3b
@@ -355,73 +592,58 @@ public:
 		vlk.GetDevice((void**)&device);
 		vlk.GetPhysicalDevice((void**)&physicalDevice);
 
+
+		for (size_t i = 0; i < OBJMESH.size(); i++)
+		{
+			GvkHelper::create_buffer(physicalDevice, device, sizeof(H2B::VERTEX) * OBJMESH[i]->vertexCount,
+				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &OBJMESH[i]->VertexHandle, &OBJMESH[i]->VertexData);
+			GvkHelper::write_to_buffer(device, OBJMESH[i]->VertexData, OBJMESH[i]->ModoVerts, sizeof(H2B::VERTEX) * OBJMESH[i]->vertexCount);
+
+
+			GvkHelper::create_buffer(physicalDevice, device, sizeof(int) * OBJMESH[i]->indexCount,
+				VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &OBJMESH[i]->IndexHandle, &OBJMESH[i]->IndexData);
+			GvkHelper::write_to_buffer(device, OBJMESH[i]->IndexData, OBJMESH[i]->logoIndices, sizeof(int) * OBJMESH[i]->indexCount);
+		}
 		// TODO: Part 1c
 		// Create Vertex Buffer
-		OBJ_VERT LogoVerts[FSLogo_vertexcount];
-		for (int i = 0; i < FSLogo_vertexcount; i++)
-		{
-			LogoVerts[i] = FSLogo_vertices[i];
-		}
 
-		GvkHelper::create_buffer(physicalDevice, device, sizeof(LogoVerts),
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vertexHandle, &vertexData);
-		GvkHelper::write_to_buffer(device, vertexData, LogoVerts, sizeof(LogoVerts));
 
-		//int me = sizeof(FSLogo_indices);
-		int LogoIndeces[FSLogo_indexcount];
-		for (int i = 0; i < FSLogo_indexcount ; i++)
-		{
-			LogoIndeces[i] = FSLogo_indices[i];
-		}
 
-		GvkHelper::create_buffer(physicalDevice, device, sizeof(LogoIndeces),
-			VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &IndexHandle, &indexData);
-		GvkHelper::write_to_buffer(device, indexData, LogoIndeces, sizeof(LogoIndeces));
-		// Transfer triangle data to the vertex buffer. (staging would be prefered here)
-		GvkHelper::create_buffer(physicalDevice, device, sizeof(FSLogo_vertices),
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | 
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vertexHandle, &vertexData);
-		GvkHelper::write_to_buffer(device, vertexData, FSLogo_vertices, sizeof(FSLogo_vertices));
-		// TODO: Part 1g
-	GvkHelper::create_buffer(physicalDevice,device,sizeof(FSLogo_indices),
-		VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &IndexHandle, &indexData);
-	GvkHelper::write_to_buffer(device, indexData, FSLogo_indices, sizeof(FSLogo_indices));
 
 		// TODO: Part 2d
-	unsigned int maxFrames;
-	vlk.GetSwapchainImageCount(maxFrames);
-	storageBuffer.resize(maxFrames);
-	storageMemory.resize(maxFrames);
-	descriptorSet.resize(maxFrames);
-	for (int i = 0; i < 2 ; i++)
-	{
-		
-		model.matrices[i] = GW::MATH::GIdentityMatrixF;
+		unsigned int maxFrames;
+		vlk.GetSwapchainImageCount(maxFrames);
+		storageBuffer.resize(maxFrames);
+		storageMemory.resize(maxFrames);
+		descriptorSet.resize(maxFrames);
+		/*for (int i = 0; i < 2 ; i++)
+		{
 
-	}
+			model.matrices[i] = GW::MATH::GIdentityMatrixF;
 
-	for (int i = 0; i < FSLogo_materialcount; i++)
-	{
-	model.matierials[i] = FSLogo_materials[i].attrib;
-		
-	}
+		}
 
-	
-	
+		for (int i = 0; i < FSLogo_materialcount; i++)
+		{
+		model.matierials[i] = FSLogo_materials[i].attrib;
 
-	for (size_t i = 0; i < maxFrames; i++)
-	{
-		
-		GvkHelper::create_buffer(physicalDevice, device, sizeof(model),
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &storageBuffer[i], &storageMemory[i]);
-		GvkHelper::write_to_buffer(device, storageMemory[i], &model, sizeof(model));
-	}
+		}*/
 
-	
+
+
+
+		for (size_t i = 0; i < maxFrames; i++)
+		{
+
+			GvkHelper::create_buffer(physicalDevice, device, sizeof(model),
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &storageBuffer[i], &storageMemory[i]);
+			GvkHelper::write_to_buffer(device, storageMemory[i], &model, sizeof(model));
+		}
+
+
 		/***************** SHADER INTIALIZATION ******************/
 		// Intialize runtime shader compiler HLSL -> SPIRV
 		shaderc_compiler_t compiler = shaderc_compiler_initialize();
@@ -474,16 +696,16 @@ public:
 		assembly_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		assembly_create_info.primitiveRestartEnable = false;
 		// TODO: Part 1e
-		
+
 		// Vertex Input State
 		VkVertexInputBindingDescription vertex_binding_description = {};
 		vertex_binding_description.binding = 0;
-		vertex_binding_description.stride = sizeof(OBJ_VERT);
+		vertex_binding_description.stride = sizeof(H2B::VERTEX);
 		vertex_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 		VkVertexInputAttributeDescription vertex_attribute_description[3] = {
 			{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, //uv, normal, etc....
-			{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3 },
-			{ 2, 0, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 6}
+			{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(H2B::VERTEX,uvw) },
+			{ 2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(H2B::VERTEX,nrm) }
 		};
 		VkPipelineVertexInputStateCreateInfo input_vertex_info = {};
 		input_vertex_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -493,9 +715,9 @@ public:
 		input_vertex_info.pVertexAttributeDescriptions = vertex_attribute_description;
 		// Viewport State (we still need to set this up even though we will overwrite the values)
 		VkViewport viewport = {
-            0, 0, static_cast<float>(width), static_cast<float>(height), 0, 1
-        };
-        VkRect2D scissor = { {0, 0}, {width, height} };
+			0, 0, static_cast<float>(width), static_cast<float>(height), 0, 1
+		};
+		VkRect2D scissor = { {0, 0}, {width, height} };
 		VkPipelineViewportStateCreateInfo viewport_create_info = {};
 		viewport_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 		viewport_create_info.viewportCount = 1;
@@ -555,7 +777,7 @@ public:
 		color_blend_create_info.blendConstants[2] = 0.0f;
 		color_blend_create_info.blendConstants[3] = 0.0f;
 		// Dynamic State 
-		VkDynamicState dynamic_state[2] = { 
+		VkDynamicState dynamic_state[2] = {
 			// By setting these we do not need to re-create the pipeline on Resize
 			VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR
 		};
@@ -563,7 +785,7 @@ public:
 		dynamic_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 		dynamic_create_info.dynamicStateCount = 2;
 		dynamic_create_info.pDynamicStates = dynamic_state;
-		
+
 		// TODO: Part 2e
 		VkDescriptorSetLayoutBinding descriptor_layout_binding = {};
 		descriptor_layout_binding.binding = 0;
@@ -575,7 +797,7 @@ public:
 		VkDescriptorSetLayoutCreateInfo  descriptor_layout_create_info = {};
 		descriptor_layout_create_info.bindingCount = 1;
 		descriptor_layout_create_info.flags = 0;
-		
+
 		descriptor_layout_create_info.pBindings = &descriptor_layout_binding;
 
 		descriptor_layout_create_info.pNext = nullptr;
@@ -589,13 +811,13 @@ public:
 		VkDescriptorPoolSize descriptor_pool_size = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,maxFrames };
 		descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		descriptor_pool_create_info.poolSizeCount = 1;
-		
+
 		descriptor_pool_create_info.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
 		descriptor_pool_create_info.pPoolSizes = &descriptor_pool_size;
 		descriptor_pool_create_info.maxSets = maxFrames;
 		descriptor_pool_create_info.pNext = nullptr;
-		
-		 vkCreateDescriptorPool(device, &descriptor_pool_create_info, nullptr, &descriptorPool);
+
+		vkCreateDescriptorPool(device, &descriptor_pool_create_info, nullptr, &descriptorPool);
 
 		// TODO: Part 2g
 		VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
@@ -609,10 +831,10 @@ public:
 		{
 			r = vkAllocateDescriptorSets(device, &descriptor_set_allocate_info, &descriptorSet[i]);
 		}
-			// TODO: Part 4f
-			// TODO: Part 4f
-		// TODO: Part 2h
-		for(int i = 0;  i < maxFrames; ++i)
+		// TODO: Part 4f
+		// TODO: Part 4f
+	// TODO: Part 2h
+		for (int i = 0; i < maxFrames; ++i)
 		{
 			VkDescriptorBufferInfo BufferInfo = { storageBuffer[i],0,VK_WHOLE_SIZE };
 			VkWriteDescriptorSet writeToset = {};
@@ -625,27 +847,27 @@ public:
 			writeToset.pBufferInfo = &BufferInfo;
 			vkUpdateDescriptorSets(device, 1, &writeToset, 0, nullptr);
 		}
-			// TODO: Part 4f
-		// TODO: Part 2e
-	
-		// Descriptor pipeline layout
+		// TODO: Part 4f
+	// TODO: Part 2e
+
+	// Descriptor pipeline layout
 		VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
 		pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipeline_layout_create_info.pSetLayouts = &descriptorlayout;
 		pipeline_layout_create_info.setLayoutCount = 1;
-		
-		
+
+
 		VkPushConstantRange push_constant_range = {};
 		push_constant_range.offset = 0;
-		push_constant_range.size = sizeof(unsigned int);
+		push_constant_range.size = sizeof(MeshIndex);
 		push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-	
+
 		// TODO: Part 3c
 		pipeline_layout_create_info.pushConstantRangeCount = 1;
 		pipeline_layout_create_info.pPushConstantRanges = &push_constant_range;
-		vkCreatePipelineLayout(device, &pipeline_layout_create_info, 
+		vkCreatePipelineLayout(device, &pipeline_layout_create_info,
 			nullptr, &pipelineLayout);
-	    // Pipeline State... (FINALLY) 
+		// Pipeline State... (FINALLY) 
 		VkGraphicsPipelineCreateInfo pipeline_create_info = {};
 		pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 		pipeline_create_info.stageCount = 2;
@@ -662,7 +884,7 @@ public:
 		pipeline_create_info.renderPass = renderPass;
 		pipeline_create_info.subpass = 0;
 		pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
-		vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, 
+		vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1,
 			&pipeline_create_info, nullptr, &pipeline);
 
 		/***************** CLEANUP / SHUTDOWN ******************/
@@ -671,30 +893,30 @@ public:
 			if (+shutdown.Find(GW::GRAPHICS::GVulkanSurface::Events::RELEASE_RESOURCES, true)) {
 				CleanUp(); // unlike D3D we must be careful about destroy timing
 			}
-		});
+			});
 	}
 	void Render()
 	{
 
-		
+
 
 		// TODO: Part 2a
-		
+
 		LightDir.x = -1;
 		LightDir.y = 1;
 		LightDir.z = 2;
 		GW::MATH::GVector proxylight;
 		proxylight.Create();
 		proxylight.NormalizeF(LightDir, LightDir);
-	
-	
+
+
 		LightColor.x = 0.9f;
 		LightColor.y = 0.9f;
 		LightColor.z = 1.0f;
 		LightColor.w = 1.0f;
 
 		// TODO: Part 4d
-		proxyMan.InverseF(View,model.View);
+		proxyMan.InverseF(View, model.View);
 		// grab the current Vulkan commandBuffer
 		unsigned int currentBuffer;
 		vlk.GetSwapchainCurrentImage(currentBuffer);
@@ -706,37 +928,57 @@ public:
 		win.GetClientHeight(height);
 		// setup the pipeline's dynamic settings
 		VkViewport viewport = {
-            0, 0, static_cast<float>(width), static_cast<float>(height), 0, 1
-        };
-        VkRect2D scissor = { {0, 0}, {width, height} };
+			0, 0, static_cast<float>(width), static_cast<float>(height), 0, 1
+		};
+		VkRect2D scissor = { {0, 0}, {width, height} };
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-		
+
 		// now we can draw
-		GvkHelper::write_to_buffer(device, storageMemory[currentBuffer], &model, sizeof(model));
 		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexHandle, offsets);
+		//vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexHandle, offsets);
 		// TODO: Part 1h
-	
-		vkCmdBindIndexBuffer(commandBuffer, IndexHandle,0, VK_INDEX_TYPE_UINT32);
+
+	//	vkCmdBindIndexBuffer(commandBuffer, IndexHandle, 0, VK_INDEX_TYPE_UINT32);
 		// TODO: Part 4d
 		// TODO: Part 2i
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			pipelineLayout, 0, 1, &descriptorSet[currentBuffer], 0, nullptr);
+
+		MeshIndex datzindex;
+		unsigned int MeshyID = 0;
+
+		for (size_t i = 0; i < OBJMESH.size(); i++)
+		{
+			GvkHelper::write_to_buffer(device, storageMemory[currentBuffer], &model, sizeof(SHADER_Data));
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+				pipelineLayout, 0, 1, &descriptorSet[currentBuffer], 0, nullptr);
+
+			for (size_t j = 0; j < OBJMESH[i]->meshCount; j++)
+			{
+
+				datzindex = { OBJMESH[i]->MeshMatrix,MeshyID };
+				MeshyID++;
+				vkCmdBindVertexBuffers(commandBuffer, 0, 1, &OBJMESH[i]->VertexHandle, offsets);
+				vkCmdBindIndexBuffer(commandBuffer, OBJMESH[i]->IndexHandle, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MeshIndex), &datzindex);
+				vkCmdDrawIndexed(commandBuffer, OBJMESH[i]->meshes[j].drawInfo.indexCount, 1, OBJMESH[i]->meshes[j].drawInfo.indexOffset, 0, 0);
+			}
+
+		}
 		// TODO: Part 3b
 			// TODO: Part 3d
 		//TODO: part 1H
-		for (size_t i = 0; i < FSLogo_meshcount; i++)
+	/*	for (size_t i = 0; i < FSLogo_meshcount; i++)
 		{
 		vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(unsigned int), &FSLogo_meshes[i].materialIndex);
 		vkCmdDrawIndexed(commandBuffer, FSLogo_meshes[i].indexCount, 1, FSLogo_meshes[i].indexOffset, 0,0);
-		}
+		}*/
 		//vkCmdDraw(commandBuffer, FSLogo_vertexcount, 1, 0, 0); // TODO: Part 1d, 1h
-		
+
+
 	}
-	
-	void UpdateCamera() 
+
+	void UpdateCamera()
 	{
 		using namespace std::chrono;
 		static auto start = std::chrono::system_clock::now();
@@ -745,7 +987,7 @@ public:
 		// world view and camera view holder
 		GW::MATH::GMATRIXF viewHold;
 		viewHold = View;
-		
+
 
 		float yaxisdown = 0.0f;
 		float yaxisup = 0.0f;
@@ -828,13 +1070,13 @@ public:
 		View = viewHold;
 		start = std::chrono::system_clock::now();
 	}
-	void LoadLevel() 
+	void LoadLevel()
 	{
 		H2B::Parser parsy;
-	
+
 		parsy.Parse("barrel.h2b");
-		
-		
+
+
 		std::string line;
 		std::fstream myFile;
 		myFile.open("../GameLevel.txt", std::ios::in);
@@ -844,17 +1086,18 @@ public:
 		if (myFile.is_open())
 		{
 
-			/*while (std::getline(myFile,line))
+			while (std::getline(myFile, line))
 			{
-				std::cout << line << '\n';			
-			}*/
+				std::cout << line << '\n';
+			}
 			myFile.close();
 		}
-		
+
+
 	}
 
 
-	
+
 private:
 	void CleanUp()
 	{
@@ -862,8 +1105,12 @@ private:
 		vkDeviceWaitIdle(device);
 		// Release allocated buffers, shaders & pipeline
 		// TODO: Part 1g
-		vkDestroyBuffer(device, IndexHandle,nullptr);
+		vkDestroyBuffer(device, IndexHandle, nullptr);
 		vkFreeMemory(device, indexData, nullptr);
+		for (int i = 0; i < storageMemory.size(); ++i) {
+			vkDestroyBuffer(device, storageBuffer[i], nullptr);
+			vkFreeMemory(device, storageMemory[i], nullptr);
+		}
 		// TODO: Part 2d
 		vkDestroyBuffer(device, vertexHandle, nullptr);
 		vkFreeMemory(device, vertexData, nullptr);
@@ -877,5 +1124,19 @@ private:
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 		vkDestroyPipeline(device, pipeline, nullptr);
 		//vkDestroyDevice(device, nullptr);
+
+		for (size_t i = 0; i < OBJMESH.size(); i++)
+		{
+			vkDestroyBuffer(device, OBJMESH[i]->VertexHandle, nullptr);
+			vkFreeMemory(device, OBJMESH[i]->VertexData, nullptr);
+
+			vkDestroyBuffer(device, OBJMESH[i]->IndexHandle, nullptr);
+			vkFreeMemory(device, OBJMESH[i]->IndexData, nullptr);
+		}
+		unsigned lestmesh = OBJMESH.size();
+		for (unsigned i = 0; i < lestmesh; ++i)
+		{
+			delete OBJMESH[i];
+		}
 	}
 };

@@ -11,10 +11,10 @@ if (WIN32)
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MD")
 	add_executable (Assignment_2_Vulkan 
 main.cpp 
+Model.h
+Model.cpp
 renderer.h
-Level_Data.h
-Level_Data.cpp
-
+h2bParser.h
 
 )
 	target_include_directories(Assignment_2_Vulkan PUBLIC $ENV{VULKAN_SDK}/Include/)
