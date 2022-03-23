@@ -194,7 +194,7 @@ float4 main(VS_OUTPUT inputverty) : SV_TARGET
     float3 reflect = reflect(lightdirection, surfacenormal);
     float3 tocam = normalize(scenedata[0].cameraPos.xyz - inputverty.Posw.xyz);
     float specdot = dot(reflect, tocam);
-    specdot = pow(specdot, scenedata[0].materials[meshID].Ns * 0.5f);
+    specdot = pow(specdot, scenedata[0].materials[meshID].Ns * 1.0f);
     float4 specfinalcolor = float4(1.0f, 1.0f, 1.0f, 0.0f) * lightcolor * saturate(specdot);
 
     finalcolor += specfinalcolor;
@@ -422,8 +422,10 @@ class Renderer
 	VkDevice device = nullptr;
 	VkBuffer vertexHandle = nullptr;
 	VkDeviceMemory vertexData = nullptr;
-	GW::MATH::GVECTORF LightDir = { -1.0f, -1.0f, 2.0f, 0.0f };
-	GW::MATH::GVECTORF LightColor = { 0.9f, 0.9, 1.0f, 1.0f };
+	//GW::MATH::GVECTORF LightDir = { 4.0f, 4.0f, 1.0f, 0.0f };
+	GW::MATH::GVECTORF LightDir = { -2.0f, -5.0f, 4.0f, 0.0f };
+	GW::MATH::GVECTORF LightColor = { 1.0f, 1.0, 1.0f, 1.0f };
+	
 
 	// TODO: Part 1g
 	VkBuffer IndexHandle = nullptr;
@@ -525,8 +527,8 @@ public:
 		model.LightColor = LightColor;
 		GW::MATH::GVector::NormalizeF(LightDir, LightColor);
 		model.LightDir = LightDir;
-		model.camPos = View.row1;
-		model.ambientLight = { 0.25f,0.25f,8.35f,0.0f };
+		model.camPos = View.row4;
+		model.ambientLight = { 0.25f,0.25f,0.35f,0.0f };
 
 		std::string fileAddress = "../GameLevel.txt";
 		std::string line;
