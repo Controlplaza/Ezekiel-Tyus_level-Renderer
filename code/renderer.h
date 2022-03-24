@@ -97,7 +97,7 @@ VS_OUTPUT main(VS_INPUT input)
     griff.pos = mul(griff.pos, scenedata[0].view);
     griff.pos = mul(griff.pos, scenedata[0].projection);
 
-    griff.nrm = mul(griff.pos, scenedata[0].matrices[meshID]);
+    griff.nrm = mul(griff.nrm, scenedata[0].matrices[meshID]);
 
     return griff;
 
@@ -172,21 +172,22 @@ struct VS_OUTPUT
 };
 float4 main(VS_OUTPUT inputverty) : SV_TARGET
 {
+ 
     float3 lightdirection = normalize(scenedata[0].LightDir.xyz);
     float4 lightcolor = scenedata[0].LightColor;
     float3 surfacepos = inputverty.pos.xyz;
     float3 surfacenormal = normalize(inputverty.nrm.xyz);
     float4 surfacecolor = float4(scenedata[0].materials[meshID].Kd, 1);
 
-
     float4 finalcolor;
     float lightratio = clamp(dot(-lightdirection, surfacenormal), 0, 1);
     float4 ambient = scenedata[0].ambientlight * surfacecolor;
 
-
+ //   float4 Angularattebtuation = dot(surfacenormal, -lightdirection);
+   // float4 finallightdirection = scenedata[0].LightColor * surfacecolor * saturate(lightratio);
     finalcolor = lightratio * scenedata[0].LightColor * surfacecolor;
 
-    finalcolor += ambient;
+    //finalcolor += ambient += finallightdirection;
 
 
 
@@ -196,8 +197,8 @@ float4 main(VS_OUTPUT inputverty) : SV_TARGET
     float specdot = dot(reflect, tocam);
     specdot = pow(specdot, scenedata[0].materials[meshID].Ns * 1.0f);
     float4 specfinalcolor = float4(1.0f, 1.0f, 1.0f, 0.0f) * lightcolor * saturate(specdot);
-
-    finalcolor += specfinalcolor;
+ tocam = scenedata[0].cameraPos.xyz;
+   finalcolor += specfinalcolor;
     return finalcolor;
 
 }
@@ -272,10 +273,15 @@ public:
 			int linecounter = 0;
 			while (std::getline(myFile, line))
 			{
-				std::cout << line << '\n';
+				std::cout << line << Mesh2H2bname<< '\n';
 
 				if (line == "MESH")
 				{
+
+					/*if (Mesh2H2bname == Mesh2H2bname)
+					{
+						!std::getline(myFile, line);
+					}*/
 					while (std::getline(myFile, line))
 					{
 						if (line == model)
@@ -423,7 +429,7 @@ class Renderer
 	VkBuffer vertexHandle = nullptr;
 	VkDeviceMemory vertexData = nullptr;
 	//GW::MATH::GVECTORF LightDir = { 4.0f, 4.0f, 1.0f, 0.0f };
-	GW::MATH::GVECTORF LightDir = { -2.0f, -5.0f, 4.0f, 0.0f };
+	GW::MATH::GVECTORF LightDir = { -0.25f, -0.25f, 0.35f, 0.0f };
 	GW::MATH::GVECTORF LightColor = { 1.0f, 1.0, 1.0f, 1.0f };
 	
 
